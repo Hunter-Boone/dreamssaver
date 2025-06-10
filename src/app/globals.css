@@ -10,7 +10,7 @@
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
+    --primary: 263 85% 24%; /* Deep purple for better contrast */
     --primary-foreground: 0 0% 98%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -60,7 +60,7 @@
 }
 
 /* Dreams Saver specific styles */
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;600;700&family=Lora:wght@400;500;600&family=Montserrat:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@300;400;600;700&family=Lora:wght@400;500;600&family=Montserrat:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600;700&display=swap");
 
 @layer base {
   body {
@@ -68,43 +68,51 @@
     background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
     min-height: 100vh;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-serif;
   }
 }
 
 @layer components {
   .dream-gradient {
-    background: linear-gradient(135deg, 
-      theme('colors.serene-blue.50') 0%, 
-      theme('colors.dreamy-lavender.50') 50%, 
-      theme('colors.soft-gray.50') 100%);
+    background: linear-gradient(
+      135deg,
+      theme("colors.serene-blue.50") 0%,
+      theme("colors.dreamy-lavender.50") 50%,
+      theme("colors.soft-gray.50") 100%
+    );
   }
-  
+
   .dream-card {
     @apply bg-white/60 backdrop-blur-sm border border-soft-gray-200 rounded-lg transition-all duration-300 hover:shadow-lg hover:bg-white/80;
   }
-  
+
   .dream-input {
     @apply bg-white/70 border-soft-gray-200 focus:border-dreamy-lavender-300 focus:ring-dreamy-lavender-200;
   }
-  
+
   .dream-button {
-    @apply bg-gradient-to-r from-dreamy-lavender-100 to-serene-blue-100 text-dreamy-lavender-800 hover:from-dreamy-lavender-200 hover:to-serene-blue-200 border border-dreamy-lavender-200 transition-all duration-300;
+    @apply bg-gradient-to-r from-dreamy-lavender-600 to-serene-blue-600 text-white hover:from-dreamy-lavender-700 hover:to-serene-blue-700 border border-dreamy-lavender-500 transition-all duration-300 shadow-md hover:shadow-lg;
   }
-  
+
   .page-transition {
     @apply animate-fade-in;
   }
-  
+
   .floating-animation {
     animation: float 6s ease-in-out infinite;
   }
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
