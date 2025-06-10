@@ -120,6 +120,8 @@ export default function DashboardPage() {
 
       if (sortField === "dream") {
         query = query.order("dream_date", { ascending });
+      } else if (sortField === "created") {
+        query = query.order("created_at", { ascending });
       } else {
         query = query.order(sortField, { ascending });
       }
