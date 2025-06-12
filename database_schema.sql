@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
   subscription_status TEXT DEFAULT 'free' CHECK (subscription_status IN ('free', 'subscribed', 'cancelled', 'past_due')) NOT NULL,
   stripe_customer_id TEXT UNIQUE,
-  ai_insight_count INTEGER DEFAULT 0 NOT NULL,
+  ai_insights_used_count INTEGER DEFAULT 0 NOT NULL,
   ai_insight_limit INTEGER DEFAULT 5
 );
 

@@ -1,68 +1,110 @@
-import { supabase } from '@/lib/db/supabaseClient'
-import { User } from '@/types/user'
+import { supabase } from "@/lib/db/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { User } from "@/types/user";
 
 export async function updateUserSubscription(
-  userId: string, 
-  subscriptionStatus: 'free' | 'subscribed' | 'cancelled' | 'past_due',
+  userId: string,
+  subscriptionStatus: "free" | "subscribed" | "cancelled" | "past_due",
   stripeCustomerId?: string
 ) {
   const updateData: any = {
     subscription_status: subscriptionStatus,
     updated_at: new Date().toISOString(),
-  }
+  };
 
   if (stripeCustomerId) {
-    updateData.stripe_customer_id = stripeCustomerId
+    updateData.stripe_customer_id = stripeCustomerId;
   }
 
   // Reset insight count if becoming premium
-  if (subscriptionStatus === 'subscribed') {
-    updateData.ai_insight_count = 0
-    updateData.ai_insight_limit = -1 // -1 indicates unlimited
-  } else if (subscriptionStatus === 'free') {
-    updateData.ai_insight_limit = 5
+  if (subscriptionStatus === "subscribed") {
+    updateData.ai_insights_used_count = 0;
+    updateData.ai_insight_limit = -1; // -1 indicates unlimited
+  } else if (subscriptionStatus === "free") {
+    updateData.ai_insight_limit = 5;
   }
 
   const { data, error } = await supabase
-    .from('users')
+    .from("users")
     .update(updateData)
-    .eq('id', userId)
+    .eq("id", userId)
     .select()
-    .single()
+    .single();
 
   if (error) {
-    throw error
+    throw error;
   }
 
-  return data
+  return data;
 }
 
 export function canUserAccessAIInsights(user: User): boolean {
-  if (user.subscription_status === 'subscribed') {
-    return true
+  if (user.subscription_status === "subscribed") {
+    return true;
   }
-  
-  return user.ai_insight_count < user.ai_insight_limit
+
+  // Provide fallback values for null/undefined fields
+  const insightCount = user.ai_insights_used_count ?? 0;
+  const insightLimit = user.ai_insight_limit ?? 5;
+
+  return insightCount < insightLimit;
 }
 
 export function getRemainingInsights(user: User): number {
-  if (user.subscription_status === 'subscribed') {
-    return -1 // Unlimited
+  if (user.subscription_status === "subscribed") {
+    return -1; // Unlimited
   }
-  
-  return Math.max(0, user.ai_insight_limit - user.ai_insight_count)
+
+  // Provide fallback values for null/undefined fields
+  const insightCount = user.ai_insights_used_count ?? 0;
+  const insightLimit = user.ai_insight_limit ?? 5;
+
+  return Math.max(0, insightLimit - insightCount);
 }
 
-export async function incrementUserInsightCount(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('users')
+export async function incrementUserInsightCount(
+  userId: string,
+  supabaseClient?: SupabaseClient
+): Promise<void> {
+  const client = supabaseClient || supabase;
+
+  // First get current count
+  const { data: user, error: fetchError } = await client
+    .from("users")
+    .select("ai_insights_used_count")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw fetchError;
+  }
+
+  // If user doesn't exist in users table, create them first
+  if (!user) {
+    const { error: createError } = await client.from("users").insert({
+      id: userId,
+      email: "", // This will need to be filled by a separate process
+      ai_insights_used_count: 1,
+      ai_insight_limit: 5,
+      subscription_status: "free",
+    });
+
+    if (createError) {
+      throw createError;
+    }
+    return;
+  }
+
+  // Increment by 1
+  const { error } = await client
+    .from("users")
     .update({
-      ai_insight_count: supabase.raw('ai_insight_count + 1'),
-      updated_at: new Date().toISOString()
+      ai_insights_used_count: (user.ai_insights_used_count ?? 0) + 1,
+      updated_at: new Date().toISOString(),
     })
-    .eq('id', userId)
+    .eq("id", userId);
 
   if (error) {
-    throw error
+    throw error;
   }
 }

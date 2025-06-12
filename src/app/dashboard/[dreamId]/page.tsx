@@ -1,102 +1,137 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { useAuthSession } from "@/lib/hooks/useAuthSession"
-import { supabase } from "@/lib/db/supabaseClient"
-import { Dream, DreamInsight } from "@/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Calendar, Sparkles, Brain, Loader2 } from "lucide-react"
-import { formatDate, getMoodEmoji, getMoodColor } from "@/lib/utils"
-import { canUserAccessAIInsights } from "@/lib/stripe/subscriptionUtils"
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useAuthSession } from "@/lib/hooks/useAuthSession";
+import { supabase } from "@/lib/db/supabaseClient";
+import { createSupabaseBrowserClient } from "@/lib/db/supabase-browser";
+import { Dream, DreamInsight } from "@/types";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Calendar, Sparkles, Brain, Loader2 } from "lucide-react";
+import { formatDate, getMoodEmoji, getMoodColor } from "@/lib/utils";
+import { canUserAccessAIInsights } from "@/lib/stripe/subscriptionUtils";
 
 export default function DreamDetailPage() {
-  const { user, appUser, isPremium } = useAuthSession()
-  const router = useRouter()
-  const params = useParams()
-  const dreamId = params.dreamId as string
+  const { user, appUser, isPremium } = useAuthSession();
+  const router = useRouter();
+  const params = useParams();
+  const dreamId = params.dreamId as string;
 
-  const [dream, setDream] = useState<Dream | null>(null)
-  const [insight, setInsight] = useState<DreamInsight | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [generatingInsight, setGeneratingInsight] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [dream, setDream] = useState<Dream | null>(null);
+  const [insight, setInsight] = useState<DreamInsight | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generatingInsight, setGeneratingInsight] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (dreamId && user) {
-      fetchDream()
+      fetchDream();
     }
-  }, [dreamId, user])
+  }, [dreamId, user]);
 
   const fetchDream = async () => {
     try {
+      const supabase = createSupabaseBrowserClient();
       const { data, error } = await supabase
-        .from('dreams')
-        .select(`
+        .from("dreams")
+        .select(
+          `
           *,
           dream_tags(
             tag:tags(*)
           ),
           insight:dream_insights(*)
-        `)
-        .eq('id', dreamId)
-        .eq('user_id', user!.id)
-        .single()
+        `
+        )
+        .eq("id", dreamId)
+        .eq("user_id", user!.id)
+        .single();
 
       if (error) {
-        console.error('Error fetching dream:', error)
-        setError('Dream not found')
-        return
+        console.error("Error fetching dream:", error);
+        setError("Dream not found");
+        return;
       }
 
-      setDream(data)
+      setDream(data);
       if (data.insight && data.insight.length > 0) {
-        setInsight(data.insight[0])
+        setInsight(data.insight[0]);
       }
     } catch (error) {
-      console.error('Error in fetchDream:', error)
-      setError('Failed to load dream')
+      console.error("Error in fetchDream:", error);
+      setError("Failed to load dream");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const generateInsight = async () => {
     if (!appUser || !canUserAccessAIInsights(appUser)) {
-      router.push('/settings/subscription')
-      return
+      router.push("/settings/subscription");
+      return;
     }
 
-    setGeneratingInsight(true)
-    setError(null)
+    setGeneratingInsight(true);
+    setError(null);
 
     try {
-      const response = await fetch('/api/insights', {
-        method: 'POST',
+      // Get the current session to include the access token
+      const supabase = createSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("No active session");
+      }
+
+      const response = await fetch("/api/insights", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
+        credentials: "include", // Ensure cookies are sent
         body: JSON.stringify({
           dream_id: dreamId,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate insight')
+        throw new Error(data.error || "Failed to generate insight");
       }
 
-      setInsight(data.insight)
+      setInsight(data.insight);
+      // Also update the main dream object so the UI is consistent
+      // This is a client-side only update
+      setDream((prevDream) => {
+        if (!prevDream) return null;
+        return {
+          ...prevDream,
+          insight: [data.insight],
+        };
+      });
     } catch (error) {
-      console.error('Error generating insight:', error)
-      setError(error instanceof Error ? error.message : 'Failed to generate insight')
+      console.error("Error generating insight:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setError(
+        `Failed to generate insight: ${errorMessage}. Please try again later.`
+      );
     } finally {
-      setGeneratingInsight(false)
+      setGeneratingInsight(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -106,26 +141,32 @@ export default function DreamDetailPage() {
           <p className="text-dreamy-lavender-800">Loading dream...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (error || !dream) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-600 mb-4">{error || 'Dream not found'}</p>
-        <Button onClick={() => router.push('/dashboard')} variant="outline">
+        <p className="text-red-600 mb-4">{error || "Dream not found"}</p>
+        <Button onClick={() => router.push("/dashboard")} variant="outline">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
       </div>
-    )
+    );
   }
 
-  const tags = dream.dream_tags?.map((dt: any) => dt.tag) || []
-  const canGenerateInsight = appUser && canUserAccessAIInsights(appUser)
-  const remainingInsights = appUser 
-    ? (isPremium ? -1 : Math.max(0, appUser.ai_insight_limit - appUser.ai_insight_count))
-    : 0
+  const tags = dream.dream_tags?.map((dt: any) => dt.tag) || [];
+  const canGenerateInsight = appUser && canUserAccessAIInsights(appUser);
+  const remainingInsights = appUser
+    ? isPremium
+      ? -1
+      : Math.max(
+          0,
+          (appUser.ai_insight_limit ?? 5) -
+            (appUser.ai_insights_used_count ?? 0)
+        )
+    : 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -133,14 +174,14 @@ export default function DreamDetailPage() {
       <div className="flex items-center space-x-4">
         <Button
           variant="ghost"
-          onClick={() => router.push('/dashboard')}
+          onClick={() => router.push("/dashboard")}
           className="p-2"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-serif text-dreamy-lavender-900">
-            {dream.title || 'Dream Details'}
+            {dream.title || "Dream Details"}
           </h1>
           <p className="text-soft-gray-600">
             {formatDate(dream.dream_date)} • {formatDate(dream.created_at)}
@@ -154,7 +195,7 @@ export default function DreamDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-xl text-dreamy-lavender-800">
-                {dream.title || 'Untitled Dream'}
+                {dream.title || "Untitled Dream"}
               </CardTitle>
               <CardDescription className="flex items-center space-x-4 mt-2">
                 <span className="flex items-center space-x-1">
@@ -174,11 +215,13 @@ export default function DreamDetailPage() {
             )}
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           {/* Dream Description */}
           <div>
-            <h3 className="font-semibold text-dreamy-lavender-800 mb-3">Dream Description</h3>
+            <h3 className="font-semibold text-dreamy-lavender-800 mb-3">
+              Dream Description
+            </h3>
             <div className="prose prose-sm max-w-none">
               <p className="text-soft-gray-700 leading-relaxed whitespace-pre-wrap">
                 {dream.description}
@@ -189,11 +232,13 @@ export default function DreamDetailPage() {
           {/* Tags */}
           {tags.length > 0 && (
             <div>
-              <h3 className="font-semibold text-dreamy-lavender-800 mb-3">Tags</h3>
+              <h3 className="font-semibold text-dreamy-lavender-800 mb-3">
+                Tags
+              </h3>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag: any) => (
-                  <Badge 
-                    key={tag.id} 
+                  <Badge
+                    key={tag.id}
                     variant="secondary"
                     className="bg-serene-blue-100 text-serene-blue-800"
                   >
@@ -214,10 +259,11 @@ export default function DreamDetailPage() {
             <span>AI Insight</span>
           </CardTitle>
           <CardDescription>
-            AI-powered interpretation of your dream's potential meaning and symbolism
+            AI-powered interpretation of your dream's potential meaning and
+            symbolism
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent>
           {insight ? (
             <div className="space-y-4">
@@ -228,18 +274,20 @@ export default function DreamDetailPage() {
               </div>
               <div className="text-xs text-soft-gray-500 border-t pt-4">
                 <p>
-                  Generated on {formatDate(insight.generated_at)} using {insight.ai_model_version}
+                  Generated on {formatDate(insight.generated_at)} using{" "}
+                  {insight.ai_model_version}
                 </p>
                 <p className="mt-1">
-                  <strong>Disclaimer:</strong> AI insights are interpretive suggestions, not definitive meanings. 
-                  Consider what resonates with your personal experience.
+                  <strong>Disclaimer:</strong> AI insights are interpretive
+                  suggestions, not definitive meanings. Consider what resonates
+                  with your personal experience.
                 </p>
               </div>
             </div>
           ) : (
             <div className="text-center py-8 space-y-4">
               <Brain className="h-12 w-12 text-soft-gray-400 mx-auto" />
-              
+
               {canGenerateInsight ? (
                 <>
                   <div>
@@ -247,15 +295,17 @@ export default function DreamDetailPage() {
                       Generate AI Insight
                     </h3>
                     <p className="text-soft-gray-600 mb-4">
-                      Get AI-powered insights about the potential meaning and symbolism in your dream.
+                      Get AI-powered insights about the potential meaning and
+                      symbolism in your dream.
                     </p>
                     {!isPremium && (
                       <p className="text-sm text-dreamy-lavender-600">
-                        You have {remainingInsights} free insight{remainingInsights === 1 ? '' : 's'} remaining.
+                        You have {remainingInsights} free insight
+                        {remainingInsights === 1 ? "" : "s"} remaining.
                       </p>
                     )}
                   </div>
-                  
+
                   <Button
                     onClick={generateInsight}
                     disabled={generatingInsight}
@@ -281,12 +331,13 @@ export default function DreamDetailPage() {
                       Unlock AI Insights
                     </h3>
                     <p className="text-soft-gray-600 mb-4">
-                      You've used all your free AI insights. Upgrade to premium for unlimited insights.
+                      You've used all your free AI insights. Upgrade to premium
+                      for unlimited insights.
                     </p>
                   </div>
-                  
+
                   <Button
-                    onClick={() => router.push('/settings/subscription')}
+                    onClick={() => router.push("/settings/subscription")}
                     className="dream-button"
                   >
                     <Sparkles className="h-4 w-4 mr-2" />
@@ -294,7 +345,7 @@ export default function DreamDetailPage() {
                   </Button>
                 </>
               )}
-              
+
               {error && (
                 <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
                   <p className="text-sm text-red-600">{error}</p>
@@ -305,5 +356,5 @@ export default function DreamDetailPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

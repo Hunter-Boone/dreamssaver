@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/lib/hooks/useAuthSession";
 import { supabase } from "@/lib/db/supabaseClient";
+import { Dream } from "@/types";
 import {
   Card,
   CardContent,
@@ -28,73 +29,46 @@ import {
   Sparkles,
   CalendarDays,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { formatDate, truncateText, getMoodEmoji } from "@/lib/utils";
 
-interface Dream {
-  id: string;
-  description: string;
-  dream_date: string;
-  title?: string;
-  mood_upon_waking: string;
-  is_lucid: boolean;
-  created_at: string;
-  insight?: any[];
-}
-
-interface AppUser {
-  id: string;
-  email: string;
-  ai_insight_count: number;
-  ai_insight_limit: number;
-  subscription_status: string;
-}
-
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuthSession();
+  const { user, appUser, loading: authLoading } = useAuthSession();
+
   const [dreams, setDreams] = useState<Dream[]>([]);
-  const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dreamsLoading, setDreamsLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMood, setFilterMood] = useState("all");
   const [filterLucid, setFilterLucid] = useState("all");
   const [sortBy, setSortBy] = useState("created_at_desc");
 
+  console.log(
+    `%c[DashboardPage] Component rendered. Auth loading: ${authLoading}`,
+    authLoading ? "color: red" : "color: green"
+  );
+
   useEffect(() => {
-    if (user) {
-      fetchUserData();
+    console.log(
+      `%c[DashboardPage] Dreams effect triggered. User: ${user?.id}, AuthLoading: ${authLoading}, Filters changed.`,
+      "color: blue"
+    );
+    if (!authLoading && user) {
       fetchDreams();
+    } else if (!authLoading && !user) {
+      console.log(
+        "[DashboardPage] No user after auth, setting dreams loading to false."
+      );
+      setDreamsLoading(false);
     }
-  }, [user, filterMood, filterLucid, sortBy]);
-
-  const fetchUserData = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (error) {
-        console.error("Error fetching user data:", error);
-        return;
-      }
-
-      setAppUser(data);
-    } catch (error) {
-      console.error("Error in fetchUserData:", error);
-    }
-  };
+  }, [user?.id, authLoading, filterMood, filterLucid, sortBy]);
 
   const fetchDreams = async () => {
-    if (!user) return;
-
+    console.log("[DashboardPage] Fetching dreams...");
+    setDreamsLoading(true);
     try {
-      setLoading(true);
-
       let query = supabase
         .from("dreams")
         .select(
@@ -103,59 +77,56 @@ export default function DashboardPage() {
           insight:dream_insights(*)
         `
         )
-        .eq("user_id", user.id);
+        .eq("user_id", user!.id);
 
       // Apply filters
       if (filterMood !== "all") {
         query = query.eq("mood_upon_waking", filterMood);
       }
-
       if (filterLucid !== "all") {
         query = query.eq("is_lucid", filterLucid === "true");
       }
 
       // Apply sorting
-      const [sortField, sortDirection] = sortBy.split("_");
+      const lastUnderscoreIndex = sortBy.lastIndexOf("_");
+      const sortField = sortBy.substring(0, lastUnderscoreIndex);
+      const sortDirection = sortBy.substring(lastUnderscoreIndex + 1);
       const ascending = sortDirection === "asc";
-
-      if (sortField === "dream") {
-        query = query.order("dream_date", { ascending });
-      } else if (sortField === "created") {
-        query = query.order("created_at", { ascending });
-      } else {
-        query = query.order(sortField, { ascending });
-      }
+      query = query.order(sortField, { ascending });
 
       const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching dreams:", error);
-        return;
+        setDreams([]);
+      } else {
+        console.log(`[DashboardPage] Fetched ${data?.length || 0} dreams.`);
+        setDreams(data || []);
       }
-
-      setDreams(data || []);
     } catch (error) {
       console.error("Error in fetchDreams:", error);
+      setDreams([]);
     } finally {
-      setLoading(false);
+      console.log("[DashboardPage] Setting dreams loading to false.");
+      setDreamsLoading(false);
     }
   };
 
   const filteredDreams = dreams.filter((dream) => {
     if (!searchTerm) return true;
     return (
-      dream.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dream.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      false
+      dream.description.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
-  if (loading) {
+  if (authLoading) {
+    console.log("[DashboardPage] Rendering AUTH loading spinner.");
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-dreamy-lavender-600 mx-auto mb-4"></div>
-          <p className="text-dreamy-lavender-800">Loading your dreams...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-dreamy-lavender-600 mx-auto mb-4" />
+          <p className="text-dreamy-lavender-800">Authenticating...</p>
         </div>
       </div>
     );
@@ -166,10 +137,12 @@ export default function DashboardPage() {
       {/* Welcome Section */}
       <div className="text-center">
         <h1 className="text-3xl sm:text-4xl font-serif text-dreamy-lavender-900 mb-4">
-          Welcome back, {user?.email?.split("@")[0]}
+          Welcome back, {appUser?.email?.split("@")[0] || "dreamer"}
         </h1>
         <p className="text-soft-gray-600 text-lg">
-          {dreams.length === 0
+          {dreamsLoading
+            ? "Loading your dreams..."
+            : dreams.length === 0
             ? "Ready to start your dream journey?"
             : `You have recorded ${dreams.length} dream${
                 dreams.length === 1 ? "" : "s"
@@ -199,14 +172,13 @@ export default function DashboardPage() {
               <div className="flex items-center space-x-2">
                 <Sparkles className="h-5 w-5 text-dreamy-lavender-600" />
                 <div>
-                  <p className="text-sm text-soft-gray-600">AI Insights</p>
+                  <p className="text-sm text-soft-gray-600">AI Insights Used</p>
                   <p className="text-2xl font-bold text-dreamy-lavender-900">
                     {appUser.subscription_status === "subscribed"
                       ? "∞"
-                      : `${Math.max(
-                          0,
-                          appUser.ai_insight_limit - appUser.ai_insight_count
-                        )}`}
+                      : `${appUser.ai_insights_used_count ?? 0} / ${
+                          appUser.ai_insight_limit ?? 5
+                        }`}
                   </p>
                 </div>
               </div>
@@ -238,165 +210,133 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {dreams.length === 0 ? (
-        /* Empty State */
+      {/* Controls: New Dream, Search, Filter */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <Button
+          onClick={() => router.push("/dashboard/new")}
+          className="w-full md:w-auto"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Record New Dream
+        </Button>
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="relative w-full sm:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-soft-gray-500" />
+            <Input
+              type="search"
+              placeholder="Search dreams..."
+              className="pl-10 w-full"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <Select value={filterMood} onValueChange={setFilterMood}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by mood" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Moods</SelectItem>
+                <SelectItem value="Happy">Happy</SelectItem>
+                <SelectItem value="Anxious">Anxious</SelectItem>
+                <SelectItem value="Calm">Calm</SelectItem>
+                <SelectItem value="Neutral">Neutral</SelectItem>
+                <SelectItem value="Excited">Excited</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at_desc">Newest First</SelectItem>
+                <SelectItem value="created_at_asc">Oldest First</SelectItem>
+                <SelectItem value="dream_date_desc">
+                  Dream Date (Newest)
+                </SelectItem>
+                <SelectItem value="dream_date_asc">
+                  Dream Date (Oldest)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Dreams List */}
+      {dreamsLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-10 w-10 animate-spin text-dreamy-lavender-600" />
+        </div>
+      ) : filteredDreams.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredDreams.map((dream) => (
+            <Card
+              key={dream.id}
+              className="dream-card-hover cursor-pointer"
+              onClick={() => router.push(`/dashboard/${dream.id}`)}
+            >
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg font-serif text-dreamy-lavender-800">
+                    {truncateText(dream.title || "Untitled Dream", 50)}
+                  </CardTitle>
+                  <span className="text-2xl">
+                    {getMoodEmoji(dream.mood_upon_waking)}
+                  </span>
+                </div>
+                <CardDescription>
+                  {formatDate(dream.dream_date)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-soft-gray-600 mb-4">
+                  {truncateText(dream.description, 100)}
+                </p>
+                <div className="flex justify-between items-center">
+                  <Badge
+                    variant={
+                      dream.insight && dream.insight.length > 0
+                        ? "default"
+                        : "secondary"
+                    }
+                  >
+                    {dream.insight && dream.insight.length > 0
+                      ? "Insightful"
+                      : "No Insight"}
+                  </Badge>
+                  {dream.is_lucid && (
+                    <Badge className="bg-whisper-gold-100 text-whisper-gold-800">
+                      Lucid
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
         <Card className="dream-card text-center py-12">
           <CardContent>
             <Moon className="h-16 w-16 text-dreamy-lavender-400 mx-auto mb-6" />
             <h2 className="text-2xl font-serif text-dreamy-lavender-800 mb-4">
-              No dreams recorded yet
+              No dreams match your filters
             </h2>
             <p className="text-soft-gray-600 mb-8 max-w-md mx-auto">
-              Start your dream journey by recording your first dream. Every
-              dream is a step closer to understanding your subconscious mind.
+              Try adjusting your search or filter settings to find what you're
+              looking for.
             </p>
             <Button
-              onClick={() => router.push("/dashboard/new")}
-              className="dream-button"
-              size="lg"
+              variant="outline"
+              onClick={() => {
+                setSearchTerm("");
+                setFilterMood("all");
+              }}
             >
-              <Plus className="h-5 w-5 mr-2" />
-              Record Your First Dream
+              Clear Filters
             </Button>
           </CardContent>
         </Card>
-      ) : (
-        <>
-          {/* Search and Filters */}
-          <Card className="dream-card">
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-soft-gray-400" />
-                  <Input
-                    placeholder="Search dreams..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 dream-input"
-                  />
-                </div>
-
-                <Select value={filterMood} onValueChange={setFilterMood}>
-                  <SelectTrigger className="dream-input">
-                    <SelectValue placeholder="Filter by mood" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Moods</SelectItem>
-                    <SelectItem value="Happy">😊 Happy</SelectItem>
-                    <SelectItem value="Anxious">😰 Anxious</SelectItem>
-                    <SelectItem value="Calm">😌 Calm</SelectItem>
-                    <SelectItem value="Neutral">😐 Neutral</SelectItem>
-                    <SelectItem value="Excited">🤩 Excited</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={filterLucid} onValueChange={setFilterLucid}>
-                  <SelectTrigger className="dream-input">
-                    <SelectValue placeholder="Lucid dreams" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Dreams</SelectItem>
-                    <SelectItem value="true">Lucid Dreams</SelectItem>
-                    <SelectItem value="false">Regular Dreams</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="dream-input">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created_at_desc">
-                      Newest First
-                    </SelectItem>
-                    <SelectItem value="created_at_asc">Oldest First</SelectItem>
-                    <SelectItem value="dream_date_desc">
-                      Dream Date (Recent)
-                    </SelectItem>
-                    <SelectItem value="dream_date_asc">
-                      Dream Date (Oldest)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Dreams Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredDreams.map((dream) => (
-              <Card
-                key={dream.id}
-                className="dream-card cursor-pointer hover:scale-105 transition-transform"
-                onClick={() => router.push(`/dashboard/${dream.id}`)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg text-dreamy-lavender-800 line-clamp-1">
-                        {dream.title || "Untitled Dream"}
-                      </CardTitle>
-                      <CardDescription className="flex items-center space-x-2 mt-1">
-                        <CalendarDays className="h-3 w-3" />
-                        <span>{formatDate(dream.dream_date)}</span>
-                      </CardDescription>
-                    </div>
-                    {dream.is_lucid && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-whisper-gold-100 text-whisper-gold-800"
-                      >
-                        Lucid
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-0">
-                  <p className="text-soft-gray-600 text-sm line-clamp-3 mb-4">
-                    {truncateText(dream.description, 120)}
-                  </p>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">
-                        {getMoodEmoji(dream.mood_upon_waking)}
-                      </span>
-                      <span className="text-xs text-soft-gray-500">
-                        {dream.mood_upon_waking}
-                      </span>
-                    </div>
-
-                    {dream.insight && dream.insight.length > 0 ? (
-                      <div className="flex items-center space-x-1">
-                        <Sparkles className="h-4 w-4 text-dreamy-lavender-600" />
-                        <span className="text-xs text-dreamy-lavender-600">
-                          Insight Available
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-soft-gray-400">
-                        No insight yet
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {filteredDreams.length === 0 && (
-            <Card className="dream-card text-center py-8">
-              <CardContent>
-                <Search className="h-12 w-12 text-soft-gray-400 mx-auto mb-4" />
-                <p className="text-soft-gray-600">
-                  No dreams match your current filters. Try adjusting your
-                  search terms.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </>
       )}
     </div>
   );

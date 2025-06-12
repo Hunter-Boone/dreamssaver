@@ -1,4 +1,4 @@
-import { FREE_TIER_INSIGHTS_LIMIT } from '@/config/dashboard'
+import { FREE_TIER_INSIGHTS_LIMIT } from "@/config/dashboard";
 
 export const constants = {
   AI_INSIGHTS: {
@@ -7,8 +7,9 @@ export const constants = {
   },
   SUBSCRIPTION: {
     PRICE_MONTHLY: 8,
-    CURRENCY: 'USD',
-    STRIPE_PRICE_ID: process.env.STRIPE_PRICE_ID || '',
+    CURRENCY: "USD",
+    STRIPE_PRODUCT_ID: process.env.NEXT_PUBLIC_STRIPE_PRODUCT_ID || "",
+    STRIPE_PRICE_ID: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || "",
   },
   LIMITS: {
     DREAM_DESCRIPTION_MAX: 5000,
@@ -17,10 +18,10 @@ export const constants = {
     TAG_LENGTH_MAX: 50,
   },
   API_ENDPOINTS: {
-    DREAMS: '/api/dreams',
-    INSIGHTS: '/api/insights',
-    TAGS: '/api/tags',
-    STRIPE_WEBHOOK: '/api/webhook/stripe',
+    DREAMS: "/api/dreams",
+    INSIGHTS: "/api/insights",
+    TAGS: "/api/tags",
+    STRIPE_WEBHOOK: "/api/webhook/stripe",
   },
 } as const;
 

@@ -1,3 +1,5 @@
+import { Dream } from "./dream";
+
 export interface DreamInsight {
   id: string;
   dream_id: string;
@@ -6,12 +8,7 @@ export interface DreamInsight {
   ai_model_version: string;
 }
 
-export interface AIInsightRequest {
-  dream_description: string;
-  mood_upon_waking: string;
-  is_lucid: boolean;
-  tags?: string[];
-}
+export interface AIInsightRequest extends Dream {}
 
 export interface AIInsightResponse {
   insight: string;

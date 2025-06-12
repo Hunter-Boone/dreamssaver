@@ -1,70 +1,40 @@
-import { AIInsightRequest, GeminiResponse } from "@/types/ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { AIInsightRequest } from "@/types/ai";
 import { createInsightPrompt } from "./aiPrompts";
-
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
 
 export async function generateDreamInsight(
   request: AIInsightRequest
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Gemini API key not configured");
-  }
-
   const prompt = createInsightPrompt(request);
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          {
-            text: prompt,
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 1024,
-    },
-    safetySettings: [
-      {
-        category: "HARM_CATEGORY_HARASSMENT",
-        threshold: "BLOCK_MEDIUM_AND_ABOVE",
-      },
-      {
-        category: "HARM_CATEGORY_HATE_SPEECH",
-        threshold: "BLOCK_MEDIUM_AND_ABOVE",
-      },
-    ],
-  };
-
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.7,
+        topP: 1,
+        frequencyPenalty: 0,
+        presencePenalty: 0,
       },
-      body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const insightText = response.text();
+
+    if (!insightText) {
+      console.error("Invalid response structure from Gemini API:", response);
+      throw new Error("No insight content received from the AI.");
     }
 
-    const data: GeminiResponse = await response.json();
-
-    if (!data.candidates || data.candidates.length === 0) {
-      throw new Error("No insight generated");
-    }
-
-    return data.candidates[0].content.parts[0].text;
+    return insightText;
   } catch (error) {
     console.error("Error generating dream insight:", error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate dream insight: ${error.message}`);
+    }
     throw new Error("Failed to generate dream insight");
   }
 }

@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth/supabaseAuth";
-import { supabase } from "@/lib/db/supabaseClient";
+import { createSupabaseServerClient } from "@/lib/db/supabase-server";
 import { generateDreamInsight } from "@/lib/ai/geminiClient";
 import { incrementUserInsightCount } from "@/lib/stripe/subscriptionUtils";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    console.log("Insights API: Starting authentication check");
+    const supabase = createSupabaseServerClient();
+
+    // Get the authorization header
+    const authorization = request.headers.get("authorization");
+
+    if (!authorization || !authorization.startsWith("Bearer ")) {
+      console.log("Insights API: No authorization header found");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authorization.split(" ")[1];
+
+    // Create a Supabase client and verify the token
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    console.log(
+      "Insights API: User from token:",
+      user ? "Found user" : "No user",
+      authError ? `Error: ${authError.message}` : ""
+    );
+
+    if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -21,31 +44,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(
+      "Insights API: Processing dream_id:",
+      dream_id,
+      "for user:",
+      user.id
+    );
+
     // Get the dream details
     const { data: dream, error: dreamError } = await supabase
       .from("dreams")
-      .select(
-        `
-        *,
-        dream_tags(
-          tag:tags(name)
-        )
-      `
-      )
+      .select("*")
       .eq("id", dream_id)
       .eq("user_id", user.id)
       .single();
 
     if (dreamError || !dream) {
+      console.log("Insights API: Dream not found or error:", dreamError);
       return NextResponse.json({ error: "Dream not found" }, { status: 404 });
     }
+
+    // Get the tags for this dream separately
+    const { data: dreamTags } = await supabase
+      .from("dream_tags")
+      .select(
+        `
+        tags (
+          id,
+          name
+        )
+      `
+      )
+      .eq("dream_id", dream_id);
 
     // Check if insight already exists
     const { data: existingInsight } = await supabase
       .from("dream_insights")
       .select("id")
       .eq("dream_id", dream_id)
-      .single();
+      .maybeSingle();
 
     if (existingInsight) {
       return NextResponse.json(
@@ -55,23 +92,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user profile to check subscription status
-    const { data: userProfile, error: userError } = await supabase
+    const { data: appUser, error: profileError } = await supabase
       .from("users")
       .select("*")
       .eq("id", user.id)
       .single();
 
-    if (userError || !userProfile) {
+    if (profileError) {
+      console.error("Error fetching user profile:", profileError);
       return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 }
+        { error: "Error fetching user profile" },
+        { status: 500 }
       );
     }
 
+    console.log("Insights API: User profile:", {
+      subscription_status: appUser.subscription_status,
+      ai_insights_used_count: appUser.ai_insights_used_count,
+      ai_insight_limit: appUser.ai_insight_limit,
+    });
+
     // Check if user can generate insights (premium or has free insights remaining)
-    const isPremium = userProfile.subscription_status === "subscribed";
+    const isPremium = appUser.subscription_status === "subscribed";
     const hasInsightsRemaining =
-      userProfile.ai_insight_count < userProfile.ai_insight_limit;
+      (appUser.ai_insights_used_count ?? 0) < (appUser.ai_insight_limit ?? 5);
+
+    console.log("Insights API: Can generate insights?", {
+      isPremium,
+      hasInsightsRemaining,
+    });
 
     if (!isPremium && !hasInsightsRemaining) {
       return NextResponse.json(
@@ -84,15 +133,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract tags for the AI request
-    const tags = dream.dream_tags?.map((dt: any) => dt.tag.name) || [];
+    const tags = dreamTags?.map((dt: any) => dt.tags.name) || [];
 
     // Generate AI insight
+    console.log("Insights API: Generating AI insight...");
     const insightText = await generateDreamInsight({
-      dream_description: dream.description,
+      id: dream.id,
+      user_id: dream.user_id,
+      description: dream.description,
+      dream_date: dream.dream_date,
       mood_upon_waking: dream.mood_upon_waking,
       is_lucid: dream.is_lucid,
-      tags,
+      created_at: dream.created_at,
+      updated_at: dream.updated_at,
+      dream_tags:
+        dreamTags?.map((dt: any) => ({
+          tag: {
+            id: dt.tags.id || "",
+            name: dt.tags.name,
+            created_at: "",
+            updated_at: "",
+          },
+        })) || [],
     });
+
+    console.log("Insights API: AI insight generated, saving to database...");
 
     // Save the insight to database
     const { data: savedInsight, error: insightError } = await supabase
@@ -100,10 +165,10 @@ export async function POST(request: NextRequest) {
       .insert({
         dream_id: dream_id,
         insight_text: insightText,
-        ai_model_version: "Gemini 2.5 Flash",
       })
-      .select()
-      .single();
+      .select();
+
+    console.log("Insights API: Insert result:", { savedInsight, insightError });
 
     if (insightError) {
       console.error("Error saving insight:", insightError);
@@ -113,12 +178,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Increment user's insight count if not premium
-    if (userProfile.subscription_status !== "subscribed") {
-      await incrementUserInsightCount(user.id);
+    if (!savedInsight || savedInsight.length === 0) {
+      console.error("No insight was saved");
+      return NextResponse.json(
+        { error: "Failed to save insight - no data returned" },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ insight: savedInsight });
+    const finalInsight = savedInsight[0];
+
+    // Increment user's insight count if not premium
+    if (appUser.subscription_status !== "subscribed") {
+      await incrementUserInsightCount(user.id, supabase);
+    }
+
+    console.log("Insights API: Successfully generated insight");
+    return NextResponse.json({ insight: finalInsight });
   } catch (error) {
     console.error("API Error:", error);
     return NextResponse.json(

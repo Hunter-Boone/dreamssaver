@@ -3,10 +3,10 @@ export interface User {
   email: string;
   created_at: string;
   updated_at: string;
-  subscription_status: 'free' | 'subscribed' | 'cancelled' | 'past_due';
-  stripe_customer_id?: string;
-  ai_insight_count: number;
-  ai_insight_limit: number;
+  subscription_status: "free" | "subscribed" | "cancelled" | "past_due" | null;
+  stripe_customer_id: string | null;
+  ai_insights_used_count: number | null;
+  ai_insight_limit: number | null;
 }
 
 export interface UserProfile extends User {

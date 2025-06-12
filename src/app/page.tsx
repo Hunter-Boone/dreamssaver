@@ -1,51 +1,67 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Sparkles, Moon, Brain, Shield } from "lucide-react"
-import { useAuthSession } from "@/lib/hooks/useAuthSession"
-import { signInWithGoogle } from "@/lib/auth/supabaseAuth"
-import { supabase } from "@/lib/db/supabaseClient"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Sparkles, Moon, Brain, Shield } from "lucide-react";
+import { useAuthSession } from "@/lib/hooks/useAuthSession";
+import { signInWithGoogle } from "@/lib/auth/supabaseAuth";
+import { supabase } from "@/lib/db/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function LandingPage() {
-  const [firstDream, setFirstDream] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { user, loading } = useAuthSession()
-  const router = useRouter()
+  const [firstDream, setFirstDream] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user, loading } = useAuthSession();
+  const router = useRouter();
 
-  // Redirect if already authenticated
-  if (!loading && user) {
-    router.push('/dashboard')
-    return null
+  useEffect(() => {
+    // Redirect if already authenticated
+    if (!loading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, router]);
+
+  // Show a loading state or nothing while checking auth/redirecting
+  if (loading || user) {
+    return (
+      <div className="flex items-center justify-center h-screen dream-gradient">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-dreamy-lavender-400"></div>
+      </div>
+    );
   }
 
   const handleSubmitFirstDream = async () => {
     if (!firstDream.trim()) {
-      setError('Please describe your dream before continuing')
-      return
+      setError("Please describe your dream before continuing");
+      return;
     }
 
-    setIsSubmitting(true)
-    setError(null)
+    setIsSubmitting(true);
+    setError(null);
 
     try {
       // Sign in with Google
-      await signInWithGoogle()
-      
+      await signInWithGoogle();
+
       // Store the first dream in localStorage temporarily
       // It will be saved after authentication completes
-      localStorage.setItem('firstDream', firstDream)
+      localStorage.setItem("firstDream", firstDream);
     } catch (error) {
-      console.error('Error during signup:', error)
-      setError('Failed to sign up. Please try again.')
+      console.error("Error during signup:", error);
+      setError("Failed to sign up. Please try again.");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen dream-gradient">
@@ -60,8 +76,9 @@ export default function LandingPage() {
               Unlock the secrets of your dreams with AI insights
             </p>
             <p className="text-lg text-soft-gray-500 mb-12 max-w-2xl mx-auto">
-              Track your dreams, discover patterns, and gain meaningful insights with the power of artificial intelligence. 
-              Start your journey of self-discovery today.
+              Track your dreams, discover patterns, and gain meaningful insights
+              with the power of artificial intelligence. Start your journey of
+              self-discovery today.
             </p>
           </div>
         </div>
@@ -87,11 +104,9 @@ export default function LandingPage() {
                 className="min-h-32 dream-input text-lg"
                 disabled={isSubmitting}
               />
-              
-              {error && (
-                <p className="text-red-600 text-sm">{error}</p>
-              )}
-              
+
+              {error && <p className="text-red-600 text-sm">{error}</p>}
+
               <Button
                 onClick={handleSubmitFirstDream}
                 disabled={isSubmitting || !firstDream.trim()}
@@ -109,10 +124,10 @@ export default function LandingPage() {
                   </>
                 )}
               </Button>
-              
+
               <p className="text-center text-sm text-soft-gray-500">
-                Already have an account?{' '}
-                <button 
+                Already have an account?{" "}
+                <button
                   onClick={() => signInWithGoogle()}
                   className="text-dreamy-lavender-600 hover:underline"
                 >
@@ -130,7 +145,7 @@ export default function LandingPage() {
           <h2 className="text-3xl sm:text-4xl font-serif text-center text-dreamy-lavender-900 mb-16">
             Why Dreams Saver?
           </h2>
-          
+
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             <Card className="dream-card text-center">
               <CardContent className="pt-8">
@@ -139,11 +154,12 @@ export default function LandingPage() {
                   AI Insights
                 </h3>
                 <p className="text-soft-gray-600">
-                  Get personalized interpretations of your dreams using advanced AI technology
+                  Get personalized interpretations of your dreams using advanced
+                  AI technology
                 </p>
               </CardContent>
             </Card>
-            
+
             <Card className="dream-card text-center">
               <CardContent className="pt-8">
                 <Moon className="h-12 w-12 text-serene-blue-600 mx-auto mb-4" />
@@ -151,11 +167,12 @@ export default function LandingPage() {
                   Track Patterns
                 </h3>
                 <p className="text-soft-gray-600">
-                  Discover recurring themes and patterns in your dream world over time
+                  Discover recurring themes and patterns in your dream world
+                  over time
                 </p>
               </CardContent>
             </Card>
-            
+
             <Card className="dream-card text-center">
               <CardContent className="pt-8">
                 <Shield className="h-12 w-12 text-dawn-peach-600 mx-auto mb-4" />
@@ -163,7 +180,8 @@ export default function LandingPage() {
                   Private & Secure
                 </h3>
                 <p className="text-soft-gray-600">
-                  Your dreams are safely stored and never shared. Complete privacy guaranteed
+                  Your dreams are safely stored and never shared. Complete
+                  privacy guaranteed
                 </p>
               </CardContent>
             </Card>
@@ -177,7 +195,7 @@ export default function LandingPage() {
           <h2 className="text-3xl sm:text-4xl font-serif text-dreamy-lavender-900 mb-8">
             Simple Pricing
           </h2>
-          
+
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <Card className="dream-card">
               <CardHeader>
@@ -185,7 +203,9 @@ export default function LandingPage() {
                 <CardDescription>Perfect for getting started</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-dreamy-lavender-900 mb-4">$0</div>
+                <div className="text-3xl font-bold text-dreamy-lavender-900 mb-4">
+                  $0
+                </div>
                 <ul className="space-y-2 text-left">
                   <li className="flex items-center">
                     <Sparkles className="h-4 w-4 text-dreamy-lavender-600 mr-2" />
@@ -198,11 +218,15 @@ export default function LandingPage() {
                 </ul>
               </CardContent>
             </Card>
-            
+
             <Card className="dream-card border-dreamy-lavender-300">
               <CardHeader>
-                <CardTitle className="text-dreamy-lavender-800">Premium</CardTitle>
-                <CardDescription>Unlimited insights and analysis</CardDescription>
+                <CardTitle className="text-dreamy-lavender-800">
+                  Premium
+                </CardTitle>
+                <CardDescription>
+                  Unlimited insights and analysis
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-dreamy-lavender-900 mb-4">
@@ -228,5 +252,5 @@ export default function LandingPage() {
         </div>
       </section>
     </div>
-  )
+  );
 }

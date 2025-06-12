@@ -17,7 +17,7 @@ export interface Database {
           updated_at: string;
           subscription_status: "free" | "subscribed" | "cancelled" | "past_due";
           stripe_customer_id: string | null;
-          ai_insight_count: number;
+          ai_insights_used_count: number;
           ai_insight_limit: number;
         };
         Insert: {
@@ -31,7 +31,7 @@ export interface Database {
             | "cancelled"
             | "past_due";
           stripe_customer_id?: string | null;
-          ai_insight_count?: number;
+          ai_insights_used_count?: number;
           ai_insight_limit?: number;
         };
         Update: {
@@ -45,7 +45,7 @@ export interface Database {
             | "cancelled"
             | "past_due";
           stripe_customer_id?: string | null;
-          ai_insight_count?: number;
+          ai_insights_used_count?: number;
           ai_insight_limit?: number;
         };
       };
