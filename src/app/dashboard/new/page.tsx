@@ -1,42 +1,55 @@
-'use client'
+"use client";
 
-import { useRouter } from 'next/navigation'
-import { useDreamForm } from "@/lib/hooks/useDreamForm"
-import { useAuthSession } from "@/lib/hooks/useAuthSession"
-import { supabase } from "@/lib/db/supabaseClient"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save, Moon } from "lucide-react"
-import { getMoodEmoji } from "@/lib/utils"
+import { useRouter } from "next/navigation";
+import { useDreamForm } from "@/lib/hooks/useDreamForm";
+import { useAuthSession } from "@/lib/hooks/useAuthSession";
+import { supabase } from "@/lib/db/supabaseClient";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Save, Moon } from "lucide-react";
+import { getMoodEmoji } from "@/lib/utils";
 
 export default function NewDreamPage() {
-  const { user } = useAuthSession()
-  const router = useRouter()
-  const { form, isSubmitting, submitError, onSubmit, setSubmitError } = useDreamForm()
+  const { user } = useAuthSession();
+  const router = useRouter();
+  const { form, isSubmitting, submitError, onSubmit, setSubmitError } =
+    useDreamForm();
 
   const handleSaveDream = async (dreamData: any) => {
     if (!user) {
-      setSubmitError('You must be logged in to save dreams')
-      return
+      setSubmitError("You must be logged in to save dreams");
+      return;
     }
 
     try {
       // Save the dream
       const { data: savedDream, error: dreamError } = await supabase
-        .from('dreams')
+        .from("dreams")
         .insert({
           ...dreamData,
           user_id: user.id,
         })
         .select()
-        .single()
+        .single();
 
       if (dreamError) {
-        throw dreamError
+        throw dreamError;
       }
 
       // Handle tags if provided
@@ -45,66 +58,66 @@ export default function NewDreamPage() {
         const tagPromises = dreamData.tag_names.map(async (tagName: string) => {
           // Try to find existing tag
           let { data: existingTag } = await supabase
-            .from('tags')
-            .select('id')
-            .eq('name', tagName)
-            .single()
+            .from("tags")
+            .select("id")
+            .eq("name", tagName)
+            .single();
 
           if (!existingTag) {
             // Create new tag
             const { data: newTag, error: tagError } = await supabase
-              .from('tags')
+              .from("tags")
               .insert({ name: tagName })
               .select()
-              .single()
+              .single();
 
-            if (tagError) throw tagError
-            existingTag = newTag
+            if (tagError) throw tagError;
+            existingTag = newTag;
           }
 
-          return existingTag.id
-        })
+          return existingTag!.id;
+        });
 
-        const tagIds = await Promise.all(tagPromises)
+        const tagIds = await Promise.all(tagPromises);
 
         // Create dream-tag associations
-        const dreamTagsData = tagIds.map(tagId => ({
+        const dreamTagsData = tagIds.map((tagId) => ({
           dream_id: savedDream.id,
           tag_id: tagId,
-        }))
+        }));
 
         const { error: dreamTagsError } = await supabase
-          .from('dream_tags')
-          .insert(dreamTagsData)
+          .from("dream_tags")
+          .insert(dreamTagsData);
 
         if (dreamTagsError) {
-          console.error('Error saving dream tags:', dreamTagsError)
+          console.error("Error saving dream tags:", dreamTagsError);
           // Don't throw here, as the dream was saved successfully
         }
       }
 
       // Redirect to the dream detail page
-      router.push(`/dashboard/${savedDream.id}`)
+      router.push(`/dashboard/${savedDream.id}`);
     } catch (error) {
-      console.error('Error saving dream:', error)
-      throw new Error('Failed to save dream. Please try again.')
+      console.error("Error saving dream:", error);
+      throw new Error("Failed to save dream. Please try again.");
     }
-  }
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-4">
-        <Button
-          variant="ghost"
-          onClick={() => router.back()}
-          className="p-2"
-        >
+        <Button variant="ghost" onClick={() => router.back()} className="p-2">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-serif text-dreamy-lavender-900">Record New Dream</h1>
-          <p className="text-soft-gray-600">Capture the details while they're still fresh</p>
+          <h1 className="text-2xl font-serif text-dreamy-lavender-900">
+            Record New Dream
+          </h1>
+          <p className="text-soft-gray-600">
+            Capture the details while they're still fresh
+          </p>
         </div>
       </div>
 
@@ -119,10 +132,12 @@ export default function NewDreamPage() {
             Fill in as much detail as you can remember about your dream
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
-          <form 
-            onSubmit={form.handleSubmit(data => onSubmit(data, handleSaveDream))}
+          <form
+            onSubmit={form.handleSubmit((data) =>
+              onSubmit(data, handleSaveDream)
+            )}
             className="space-y-6"
           >
             {/* Date */}
@@ -132,7 +147,7 @@ export default function NewDreamPage() {
                 id="dream_date"
                 type="date"
                 className="dream-input"
-                {...form.register('dream_date')}
+                {...form.register("dream_date")}
               />
               {form.formState.errors.dream_date && (
                 <p className="text-sm text-red-600">
@@ -148,7 +163,7 @@ export default function NewDreamPage() {
                 id="title"
                 placeholder="Give your dream a memorable title..."
                 className="dream-input"
-                {...form.register('title')}
+                {...form.register("title")}
               />
             </div>
 
@@ -159,7 +174,7 @@ export default function NewDreamPage() {
                 id="description"
                 placeholder="Describe your dream in as much detail as you can remember..."
                 className="min-h-40 dream-input"
-                {...form.register('description')}
+                {...form.register("description")}
               />
               {form.formState.errors.description && (
                 <p className="text-sm text-red-600">
@@ -172,8 +187,10 @@ export default function NewDreamPage() {
             <div className="space-y-2">
               <Label htmlFor="mood">How did you feel when you woke up? *</Label>
               <Select
-                value={form.watch('mood_upon_waking')}
-                onValueChange={(value) => form.setValue('mood_upon_waking', value as any)}
+                value={form.watch("mood_upon_waking")}
+                onValueChange={(value) =>
+                  form.setValue("mood_upon_waking", value as any)
+                }
               >
                 <SelectTrigger className="dream-input">
                   <SelectValue placeholder="Select your mood" />
@@ -181,31 +198,31 @@ export default function NewDreamPage() {
                 <SelectContent>
                   <SelectItem value="Happy">
                     <span className="flex items-center space-x-2">
-                      <span>{getMoodEmoji('Happy')}</span>
+                      <span>{getMoodEmoji("Happy")}</span>
                       <span>Happy</span>
                     </span>
                   </SelectItem>
                   <SelectItem value="Anxious">
                     <span className="flex items-center space-x-2">
-                      <span>{getMoodEmoji('Anxious')}</span>
+                      <span>{getMoodEmoji("Anxious")}</span>
                       <span>Anxious</span>
                     </span>
                   </SelectItem>
                   <SelectItem value="Calm">
                     <span className="flex items-center space-x-2">
-                      <span>{getMoodEmoji('Calm')}</span>
+                      <span>{getMoodEmoji("Calm")}</span>
                       <span>Calm</span>
                     </span>
                   </SelectItem>
                   <SelectItem value="Neutral">
                     <span className="flex items-center space-x-2">
-                      <span>{getMoodEmoji('Neutral')}</span>
+                      <span>{getMoodEmoji("Neutral")}</span>
                       <span>Neutral</span>
                     </span>
                   </SelectItem>
                   <SelectItem value="Excited">
                     <span className="flex items-center space-x-2">
-                      <span>{getMoodEmoji('Excited')}</span>
+                      <span>{getMoodEmoji("Excited")}</span>
                       <span>Excited</span>
                     </span>
                   </SelectItem>
@@ -219,7 +236,7 @@ export default function NewDreamPage() {
                 id="is_lucid"
                 type="checkbox"
                 className="rounded border-soft-gray-300 text-dreamy-lavender-600 focus:ring-dreamy-lavender-500"
-                {...form.register('is_lucid')}
+                {...form.register("is_lucid")}
               />
               <Label htmlFor="is_lucid" className="text-sm">
                 This was a lucid dream (I was aware I was dreaming)
@@ -233,7 +250,7 @@ export default function NewDreamPage() {
                 id="tag_input"
                 placeholder="Add tags separated by commas (e.g., flying, water, school, anxiety)..."
                 className="min-h-20 dream-input"
-                {...form.register('tag_input')}
+                {...form.register("tag_input")}
               />
               <p className="text-xs text-soft-gray-500">
                 Tags help you categorize and find your dreams later
@@ -279,5 +296,5 @@ export default function NewDreamPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
