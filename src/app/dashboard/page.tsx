@@ -174,7 +174,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm text-soft-gray-600">AI Insights Used</p>
                   <p className="text-2xl font-bold text-dreamy-lavender-900">
-                    {appUser.subscription_status === "subscribed"
+                    {appUser.is_premium
                       ? "∞"
                       : `${appUser.ai_insights_used_count ?? 0} / ${
                           appUser.ai_insight_limit ?? 5

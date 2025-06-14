@@ -196,6 +196,6 @@ export function useAuthSession() {
     loading,
     refreshAppUser,
     isAuthenticated: !!user,
-    isPremium: appUser?.subscription_status === "subscribed",
+    isPremium: appUser?.is_premium || false,
   };
 }

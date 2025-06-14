@@ -4,11 +4,11 @@ import { User } from "@/types/user";
 
 export async function updateUserSubscription(
   userId: string,
-  subscriptionStatus: "free" | "subscribed" | "cancelled" | "past_due",
+  isPremium: boolean,
   stripeCustomerId?: string
 ) {
   const updateData: any = {
-    subscription_status: subscriptionStatus,
+    is_premium: isPremium,
     updated_at: new Date().toISOString(),
   };
 
@@ -17,10 +17,10 @@ export async function updateUserSubscription(
   }
 
   // Reset insight count if becoming premium
-  if (subscriptionStatus === "subscribed") {
+  if (isPremium) {
     updateData.ai_insights_used_count = 0;
     updateData.ai_insight_limit = -1; // -1 indicates unlimited
-  } else if (subscriptionStatus === "free") {
+  } else {
     updateData.ai_insight_limit = 5;
   }
 
@@ -39,7 +39,7 @@ export async function updateUserSubscription(
 }
 
 export function canUserAccessAIInsights(user: User): boolean {
-  if (user.subscription_status === "subscribed") {
+  if (user.is_premium) {
     return true;
   }
 
@@ -51,7 +51,7 @@ export function canUserAccessAIInsights(user: User): boolean {
 }
 
 export function getRemainingInsights(user: User): number {
-  if (user.subscription_status === "subscribed") {
+  if (user.is_premium) {
     return -1; // Unlimited
   }
 
@@ -86,7 +86,7 @@ export async function incrementUserInsightCount(
       email: "", // This will need to be filled by a separate process
       ai_insights_used_count: 1,
       ai_insight_limit: 5,
-      subscription_status: "free",
+      is_premium: false,
     });
 
     if (createError) {

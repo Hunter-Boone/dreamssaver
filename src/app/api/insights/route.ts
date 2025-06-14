@@ -107,13 +107,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Insights API: User profile:", {
-      subscription_status: appUser.subscription_status,
+      is_premium: appUser.is_premium,
       ai_insights_used_count: appUser.ai_insights_used_count,
       ai_insight_limit: appUser.ai_insight_limit,
     });
 
     // Check if user can generate insights (premium or has free insights remaining)
-    const isPremium = appUser.subscription_status === "subscribed";
+    const isPremium = appUser.is_premium;
     const hasInsightsRemaining =
       (appUser.ai_insights_used_count ?? 0) < (appUser.ai_insight_limit ?? 5);
 
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     const finalInsight = savedInsight[0];
 
     // Increment user's insight count if not premium
-    if (appUser.subscription_status !== "subscribed") {
+    if (!appUser.is_premium) {
       await incrementUserInsightCount(user.id, supabase);
     }
 

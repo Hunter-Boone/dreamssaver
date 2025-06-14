@@ -3,7 +3,7 @@ export interface User {
   email: string;
   created_at: string;
   updated_at: string;
-  subscription_status: "free" | "subscribed" | "cancelled" | "past_due" | null;
+  is_premium: boolean;
   stripe_customer_id: string | null;
   ai_insights_used_count: number | null;
   ai_insight_limit: number | null;

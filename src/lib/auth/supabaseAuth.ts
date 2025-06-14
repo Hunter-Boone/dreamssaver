@@ -102,7 +102,7 @@ export async function createUserProfile(user: User) {
         email: user.email!,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        subscription_status: "free",
+        is_premium: false,
         ai_insights_used_count: 0,
         ai_insight_limit: 5,
       })
